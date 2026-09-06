@@ -1,6 +1,18 @@
 import { z } from "zod";
 export const priorities = ["low", "medium", "high", "urgent"] as const;
 export const statuses = ["pending", "in_progress", "completed"] as const;
+export const loginSchema = z
+  .object({
+    email: z
+      .email()
+      .max(254)
+      .transform((value) => value.trim().toLowerCase()),
+    password: z.string().min(8).max(128),
+  })
+  .strict();
+export const registerSchema = loginSchema
+  .extend({ display_name: z.string().trim().min(2).max(100) })
+  .strict();
 export const taskSchema = z
   .object({
     title: z.string().trim().min(1, "Please enter a title.").max(160),

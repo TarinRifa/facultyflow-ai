@@ -9,50 +9,39 @@ import {
   GraduationCap,
   LoaderCircle,
 } from "lucide-react";
-import { browserClient } from "@/lib/supabase/browser";
 export function Login() {
   const router = useRouter();
   const [signup, setSignup] = useState(false),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [message, setMessage] = useState("");
+    [error, setError] = useState("");
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError("");
-    setMessage("");
     const values = new FormData(event.currentTarget);
     try {
-      const client = browserClient();
-      if (signup) {
-        const { data, error } = await client.auth.signUp({
-          email: String(values.get("email")),
-          password: String(values.get("password")),
-          options: {
-            data: { display_name: String(values.get("name")) },
-            emailRedirectTo: window.location.origin + "/auth/callback",
-          },
-        });
-        if (error) throw error;
-        if (data.session) {
-          router.push("/dashboard");
-          router.refresh();
-          return;
-        }
-        setMessage("Check your email to confirm your account, then sign in.");
-      } else {
-        const { error } = await client.auth.signInWithPassword({
-          email: String(values.get("email")),
-          password: String(values.get("password")),
-        });
-        if (error) throw error;
-        router.push("/dashboard");
-        router.refresh();
-        return;
-      }
-    } catch (e) {
+      const response = await fetch(
+        signup ? "/api/auth/register" : "/api/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: String(values.get("email")),
+            password: String(values.get("password")),
+            ...(signup ? { display_name: String(values.get("name")) } : {}),
+          }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      router.push("/dashboard");
+      router.refresh();
+      return;
+    } catch (cause) {
       setError(
-        e instanceof Error ? e.message : "Unable to sign in. Please try again.",
+        cause instanceof Error
+          ? cause.message
+          : "Unable to sign in. Please try again.",
       );
     }
     setBusy(false);
@@ -113,6 +102,7 @@ export function Login() {
                   name="name"
                   autoComplete="name"
                   required
+                  minLength={2}
                   maxLength={100}
                   placeholder="Dr. Alex Morgan"
                 />
@@ -125,6 +115,7 @@ export function Login() {
                 type="email"
                 autoComplete="email"
                 required
+                maxLength={254}
                 placeholder="you@university.edu"
               />
             </label>
@@ -135,6 +126,7 @@ export function Login() {
                 type="password"
                 autoComplete={signup ? "new-password" : "current-password"}
                 minLength={8}
+                maxLength={128}
                 required
                 placeholder="At least 8 characters"
               />
@@ -142,11 +134,6 @@ export function Login() {
             {error && (
               <p className="error" role="alert">
                 {error}
-              </p>
-            )}
-            {message && (
-              <p className="success" role="status">
-                {message}
               </p>
             )}
             <button className="primary login-submit" disabled={busy}>
@@ -163,10 +150,10 @@ export function Login() {
           <p className="switch-auth">
             {signup ? "Already have an account?" : "New to FacultyFlow?"}{" "}
             <button
+              type="button"
               onClick={() => {
                 setSignup(!signup);
                 setError("");
-                setMessage("");
               }}
             >
               {signup ? "Sign in" : "Create an account"}

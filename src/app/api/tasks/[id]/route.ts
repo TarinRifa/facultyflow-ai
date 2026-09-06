@@ -8,6 +8,7 @@ import {
   fail,
   respond,
 } from "@/lib/api";
+import { db } from "@/lib/db";
 import { updateSchema } from "@/lib/validation";
 type Context = { params: Promise<{ id: string }> };
 async function target(context: Context) {
@@ -15,54 +16,65 @@ async function target(context: Context) {
 }
 export async function GET(_request: Request, context: Context) {
   try {
-    const { client, user } = await authenticated();
-    const { data, error } = await client
-      .from("tasks")
-      .select("*")
-      .eq("id", await target(context))
-      .eq("user_id", user.id)
-      .maybeSingle();
-    databaseError(error);
-    if (!data) throw new ApiError(404, "Task not found.");
-    return respond({ task: data });
-  } catch (e) {
-    return fail(e);
+    const { user } = await authenticated();
+    const result = await db.query(
+      "select * from public.tasks where id=$1 and user_id=$2",
+      [await target(context), user.id],
+    );
+    if (!result.rows[0]) throw new ApiError(404, "Task not found.");
+    return respond({ task: result.rows[0] });
+  } catch (error) {
+    if ((error as { code?: string }).code)
+      try {
+        databaseError(error);
+      } catch (mapped) {
+        return fail(mapped);
+      }
+    return fail(error);
   }
 }
 export async function PATCH(request: Request, context: Context) {
   try {
     checkOrigin(request);
-    const { client, user } = await authenticated();
+    const { user } = await authenticated();
     const input = updateSchema.parse(await body(request));
-    const { data, error } = await client
-      .from("tasks")
-      .update(input)
-      .eq("id", await target(context))
-      .eq("user_id", user.id)
-      .select()
-      .maybeSingle();
-    databaseError(error);
-    if (!data) throw new ApiError(404, "Task not found.");
-    return respond({ task: data });
-  } catch (e) {
-    return fail(e);
+    const entries = Object.entries(input);
+    const values = entries.map(([, value]) => value);
+    values.push(await target(context), user.id);
+    const set = entries.map(([key], index) => `${key}=$${index + 1}`).join(",");
+    const result = await db.query(
+      `update public.tasks set ${set} where id=$${values.length - 1} and user_id=$${values.length} returning *`,
+      values,
+    );
+    if (!result.rows[0]) throw new ApiError(404, "Task not found.");
+    return respond({ task: result.rows[0] });
+  } catch (error) {
+    if ((error as { code?: string }).code)
+      try {
+        databaseError(error);
+      } catch (mapped) {
+        return fail(mapped);
+      }
+    return fail(error);
   }
 }
 export async function DELETE(request: Request, context: Context) {
   try {
     checkOrigin(request);
-    const { client, user } = await authenticated();
-    const { data, error } = await client
-      .from("tasks")
-      .delete()
-      .eq("id", await target(context))
-      .eq("user_id", user.id)
-      .select("id")
-      .maybeSingle();
-    databaseError(error);
-    if (!data) throw new ApiError(404, "Task not found.");
+    const { user } = await authenticated();
+    const result = await db.query(
+      "delete from public.tasks where id=$1 and user_id=$2 returning id",
+      [await target(context), user.id],
+    );
+    if (!result.rows[0]) throw new ApiError(404, "Task not found.");
     return respond({ deleted: true });
-  } catch (e) {
-    return fail(e);
+  } catch (error) {
+    if ((error as { code?: string }).code)
+      try {
+        databaseError(error);
+      } catch (mapped) {
+        return fail(mapped);
+      }
+    return fail(error);
   }
 }

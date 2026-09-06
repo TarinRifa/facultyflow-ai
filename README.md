@@ -1,6 +1,6 @@
 # FacultyFlow AI
 
-FacultyFlow AI is a faculty-focused task manager built with Next.js 16, React 19, Tailwind CSS, Supabase Auth, and Supabase PostgreSQL.
+FacultyFlow AI is a faculty-focused task manager built with Next.js 16, React 19, Tailwind CSS, custom database-backed email/password authentication, and Supabase PostgreSQL.
 
 ## Implemented
 
@@ -17,13 +17,13 @@ Gemini tool calling is Phase 4 and has not been implemented yet.
 
 ## Run locally
 
-1. Copy `.env.example` to `.env.local` and add the current Supabase project values.
+1. Copy `.env.example` to `.env.local` and add the current database connection values.
 2. Install packages with `npm install`.
-3. Apply `supabase/migrations/202609060001_facultyflow.sql` through Supabase SQL Editor, or configure `DATABASE_URL` plus `SUPABASE_DB_CA_PATH` and run `npm run db:migrate`.
+3. Configure `DATABASE_URL`, then run `npm run db:migrate` followed by `npm run db:migrate:auth`.
 4. Start the app with `npm run dev`.
 5. Open [http://localhost:3000](http://localhost:3000).
 
-The migration has already been applied to the configured development Supabase project. `.env.local`, database certificates, build output, and test artifacts are excluded from Git.
+The migrations have already been applied to the configured development Supabase project. `.env.local`, build output, and test artifacts are excluded from Git. The committed certificate is Supabase's public CA certificate and contains no private credentials.
 
 ## Checks
 

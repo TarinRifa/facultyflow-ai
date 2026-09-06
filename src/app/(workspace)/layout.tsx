@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { serverClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth";
 import { Shell } from "@/components/shell";
 export const dynamic = "force-dynamic";
 export default async function Layout({
@@ -7,16 +7,10 @@ export default async function Layout({
 }: {
   children: React.ReactNode;
 }) {
-  const client = await serverClient();
-  const {
-    data: { user },
-  } = await client.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/login");
   return (
-    <Shell
-      name={user.user_metadata.display_name || "Faculty member"}
-      email={user.email || ""}
-    >
+    <Shell name={user.display_name} email={user.email}>
       {children}
     </Shell>
   );

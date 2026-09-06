@@ -139,7 +139,7 @@ export function TaskForm({
               Category
               <input
                 aria-label="Category"
-                  list="categories"
+                list="categories"
                 placeholder="e.g. Teaching"
                 maxLength={60}
                 {...register("category")}

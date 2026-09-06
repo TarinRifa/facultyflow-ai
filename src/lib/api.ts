@@ -1,35 +1,23 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { serverClient } from "@/lib/supabase/server";
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+import { requireUser } from "@/lib/auth";
+import { ApiError } from "@/lib/api-error";
+export { ApiError };
 export async function authenticated() {
-  const client = await serverClient();
-  const {
-    data: { user },
-    error,
-  } = await client.auth.getUser();
-  if (error || !user) throw new ApiError(401, "Please sign in to continue.");
-  return { client, user };
+  return { user: await requireUser() };
 }
 export function checkOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin)
     throw new ApiError(403, "This request is not allowed.");
 }
-export function databaseError(error: { code?: string } | null) {
-  if (!error) return;
-  if (["PGRST205", "42P01"].includes(error.code || ""))
+export function databaseError(error: unknown): never {
+  const code = (error as { code?: string }).code;
+  if (["42P01", "42703"].includes(code || ""))
     throw new ApiError(
       503,
-      "Database setup is pending. Run the FacultyFlow migration in Supabase SQL Editor.",
+      "Database setup is pending. Run the latest FacultyFlow migrations.",
     );
   throw new ApiError(
     500,
@@ -52,6 +40,10 @@ export function fail(error: unknown) {
     return respond({ error: "Invalid request body." }, 400);
   if (error instanceof ApiError)
     return respond({ error: error.message }, error.status);
+  console.error(
+    "Request failed",
+    error instanceof Error ? error.message : error,
+  );
   return respond({ error: "Something went wrong. Please try again." }, 500);
 }
 export async function body(request: Request) {

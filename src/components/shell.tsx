@@ -11,7 +11,6 @@ import {
   PanelLeftClose,
 } from "lucide-react";
 import { useState } from "react";
-import { browserClient } from "@/lib/supabase/browser";
 export function Shell({
   children,
   name,
@@ -25,8 +24,8 @@ export function Shell({
   const router = useRouter();
   const [error, setError] = useState("");
   async function logout() {
-    const { error } = await browserClient().auth.signOut();
-    if (error) {
+    const response = await fetch("/api/auth/logout", { method: "POST" });
+    if (!response.ok) {
       setError("Could not sign out. Please retry.");
       return;
     }
