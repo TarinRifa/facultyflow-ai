@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { Shell } from "@/components/shell";
+import { ToastNotifications } from "@/components/toast-notifications";
 export const dynamic = "force-dynamic";
 export default async function Layout({
   children,
@@ -12,6 +13,7 @@ export default async function Layout({
   return (
     <Shell name={user.display_name} email={user.email} role={user.role}>
       {children}
+      <ToastNotifications />
     </Shell>
   );
 }

@@ -359,6 +359,31 @@ textarea::placeholder {
   max-width: 1600px;
   margin: auto;
 }
+.toast-stack {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  gap: 10px;
+  z-index: 10000;
+  pointer-events: none;
+}
+.toast-popup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #dcd7ec;
+  border-radius: 12px;
+  background: white;
+  color: #39745a;
+  box-shadow: 0 8px 30px #29203b22;
+  pointer-events: auto;
+}
+.toast-popup.error { color: #b33d4e; background: #fff7f8; }
+.toast-popup p { flex: 1; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.toast-popup > svg { flex-shrink: 0; }
 .admin-nav-label {
   margin-top: 18px;
 }

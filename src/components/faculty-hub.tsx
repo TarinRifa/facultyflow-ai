@@ -1,4 +1,5 @@
 "use client";
+import { appFetch } from "@/lib/client-api";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState } from "react";
 import { AssessmentEditor, QuestionEditor } from "./faculty-editors";
@@ -37,7 +38,7 @@ export function FacultyHub() {
     [notice, setNotice] = useState("");
   const load = useCallback(async () => {
     try {
-      const r = await fetch("/api/faculty");
+      const r = await appFetch("/api/faculty");
       const v = await r.json();
       if (!r.ok) throw new Error(v.error);
       setData(v);
@@ -58,7 +59,7 @@ export function FacultyHub() {
     setError("");
     setNotice("");
     try {
-      const r = await fetch(
+      const r = await appFetch(
         resource ? `/api/faculty/${resource}` : "/api/faculty",
         options,
       );
@@ -615,7 +616,7 @@ function Matching({
         disabled={!papers.length}
         onClick={async () => {
           setBusySafe();
-          const r = await fetch(
+          const r = await appFetch(
             `/api/faculty/previous-matches?course_id=${courseId}`,
           );
           const v = await r.json();

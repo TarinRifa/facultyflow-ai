@@ -8,6 +8,8 @@ import {
 } from "@/lib/api";
 import { chatSchema } from "@/lib/ai/schema";
 import { runChat } from "@/lib/ai/chat";
+import { appendChat, chatContext } from "@/lib/chat-history";
+import { proposeAssistantAction } from "@/lib/ai/actions";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export async function POST(request: Request) {
@@ -15,6 +17,25 @@ export async function POST(request: Request) {
     checkOrigin(request);
     const { user } = await authenticated();
     const input = chatSchema.parse(await body(request));
+    input.history = await chatContext(user.id);
+    await appendChat(user.id, "user", input.message);
+    if (
+      /^(?:(?:please|can you|could you|i want to|i would like to)\s+)*(?:delete|remove)\b.*\btask\b/i.test(
+        input.message,
+      )
+    ) {
+      const action = await proposeAssistantAction(user.id, "manage_task", {
+        action: "delete",
+      });
+      const reply = {
+        answer:
+          "Choose a current task below. I’ll ask you to confirm before deleting it.",
+        tasks: [],
+        actions: [action],
+      };
+      await appendChat(user.id, "assistant", reply.answer, reply);
+      return respond(reply);
+    }
     const signal = AbortSignal.any([
       request.signal,
       AbortSignal.timeout(45000),
@@ -27,9 +48,19 @@ export async function POST(request: Request) {
       if (signal.aborted) listener();
     });
     try {
-      return respond(
-        await Promise.race([runChat(user.id, input, signal), timeout]),
+      const reply = await Promise.race([
+        runChat(user.id, input, signal),
+        timeout,
+      ]);
+      await appendChat(user.id, "assistant", reply.answer, reply);
+      return respond(reply);
+    } catch (error) {
+      await appendChat(
+        user.id,
+        "assistant",
+        "I could not complete that request. Please retry. Any proposed changes still require approval.",
       );
+      throw error;
     } finally {
       if (listener) signal.removeEventListener("abort", listener);
     }

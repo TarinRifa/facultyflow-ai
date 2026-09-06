@@ -1,4 +1,5 @@
 "use client";
+import { appFetch } from "@/lib/client-api";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import {
@@ -11,7 +12,7 @@ const lines = (v: string) =>
     .map((s) => s.trim())
     .filter(Boolean);
 async function send(type: string, body: unknown) {
-  const r = await fetch("/api/faculty/editor" + type, {
+  const r = await appFetch("/api/faculty/editor" + type, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -215,9 +216,12 @@ export function AssessmentEditor({
                     setBusy(true);
                     setError("");
                     try {
-                      const r = await fetch("/api/faculty/editor?id=" + a.id, {
-                        method: "DELETE",
-                      });
+                      const r = await appFetch(
+                        "/api/faculty/editor?id=" + a.id,
+                        {
+                          method: "DELETE",
+                        },
+                      );
                       if (!r.ok) throw new Error((await r.json()).error);
                       await refresh();
                     } catch (e) {
@@ -266,7 +270,7 @@ export function QuestionEditor({
     setBusy(true);
     setError("");
     try {
-      const r = await fetch("/api/faculty/questions", {
+      const r = await appFetch("/api/faculty/questions", {
         method: mode === "regenerate" ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
