@@ -2,58 +2,58 @@
 
 ## Phase 0 — Decisions and Setup
 
-- [ ] Receive plan approval.
+- [x] Receive plan approval.
 - [ ] Confirm the exact Gemini model identifier and supported SDK/tool-calling interface.
 - [ ] Rotate the Gemini key that was shared and supply the replacement through local environment configuration only.
-- [ ] Receive Supabase project URL and anon/publishable key.
-- [ ] Confirm authentication method and demo account strategy.
-- [ ] Confirm timezone and date semantics.
-- [ ] Confirm branding/project name or approve “FacultyFlow AI.”
-- [ ] Initialize Git if desired and scaffold the Next.js TypeScript project.
-- [ ] Add `.env.example`, `.gitignore`, linting, formatting, and test scripts.
+- [x] Receive Supabase project URL and anon/publishable key.
+- [x] Use email/password authentication and a guarded demo-data script.
+- [x] Use Asia/Dhaka and optional date-and-time deadlines for the MVP.
+- [x] Use the approved project name “FacultyFlow AI.”
+- [x] Initialize Git and scaffold the Next.js TypeScript project.
+- [x] Add `.env.example`, `.gitignore`, linting, formatting, and test scripts.
 
 **Exit criterion:** the project starts locally, environment variables validate, and no secrets are tracked.
 
 ## Phase 1 — Database and Authentication
 
-- [ ] Create database enums or validated text constraints for priority and status.
-- [ ] Create `profiles` and `tasks` migrations.
-- [ ] Add foreign keys, checks, timestamps, and indexes.
-- [ ] Enable and test RLS policies.
-- [ ] Configure Supabase Auth.
-- [ ] Build login/logout and protected route handling.
-- [ ] Create typed Supabase browser and server clients.
-- [ ] Create a repeatable demo-data seed path that cannot affect production accidentally.
+- [x] Create validated text constraints for priority and status.
+- [x] Create `profiles` and `tasks` migrations.
+- [x] Add foreign keys, checks, timestamps, and indexes.
+- [x] Enable and test RLS policies.
+- [x] Configure Supabase Auth integration.
+- [x] Build login/logout and protected route handling.
+- [x] Create typed Supabase browser and server clients.
+- [x] Create a guarded repeatable demo-data seed path.
 
 **Exit criterion:** two test users can sign in and cannot see or mutate each other’s tasks.
 
 ## Phase 2 — Task CRUD
 
-- [ ] Define shared task types and Zod schemas.
-- [ ] Implement authenticated task query service.
-- [ ] Implement list endpoint with pagination, sorting, search, and combined filters.
-- [ ] Implement create endpoint.
-- [ ] Implement retrieve/update endpoint.
-- [ ] Implement complete/reopen behavior and `completed_at` consistency.
-- [ ] Implement delete endpoint with ownership checks.
-- [ ] Build task list/table and responsive card view.
-- [ ] Build create/edit form with validation.
-- [ ] Add complete/reopen and delete confirmation interactions.
-- [ ] Add loading, empty, success, and error states.
+- [x] Define shared task types and Zod schemas.
+- [x] Implement authenticated task query service.
+- [x] Implement list endpoint with pagination, sorting, search, and combined filters.
+- [x] Implement create endpoint.
+- [x] Implement retrieve/update endpoint.
+- [x] Implement complete/reopen behavior and `completed_at` consistency.
+- [x] Implement delete endpoint with ownership checks.
+- [x] Build task list and responsive card view.
+- [x] Build create/edit form with validation.
+- [x] Add complete/reopen and delete confirmation interactions.
+- [x] Add loading, empty, success, and error states.
 
 **Exit criterion:** the full task lifecycle works and persists across refreshes.
 
 ## Phase 3 — Search, Filters, and Dashboard
 
-- [ ] Add debounced text search.
-- [ ] Add status, priority, course/category, overdue, and date filters.
-- [ ] Add sorting and clear-all behavior.
-- [ ] Make filter combinations deterministic and shareable where practical.
-- [ ] Implement shared date-range helpers with timezone tests.
-- [ ] Implement dashboard aggregate service and endpoint.
-- [ ] Build pending, completed, upcoming, and overdue cards.
-- [ ] Build today/upcoming list and quick-add action.
-- [ ] Verify dashboard changes after CRUD operations.
+- [x] Add debounced text search.
+- [x] Add status, priority, course/category, overdue, and date filters.
+- [x] Add sorting and clear-all behavior.
+- [x] Make filter combinations deterministic and shareable through the URL.
+- [x] Implement shared date-range helpers with timezone tests.
+- [x] Implement dashboard aggregate service and endpoint.
+- [x] Build pending, completed, upcoming, and overdue cards.
+- [x] Build today/upcoming list and quick-add action.
+- [x] Verify dashboard changes after CRUD operations.
 
 **Exit criterion:** all dashboard numbers agree with equivalent filtered task views.
 
@@ -126,4 +126,3 @@
 - [ ] Date behavior is consistent with the chosen timezone.
 - [ ] README contains setup, migration, run, test, and deployment instructions.
 - [ ] The demo story is repeatable and fits the presentation window.
-
