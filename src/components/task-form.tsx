@@ -1,4 +1,5 @@
 "use client";
+import { appFetch } from "@/lib/client-api";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,7 +46,7 @@ export function TaskForm({
     setError("");
     try {
       const { due_local, ...rest } = values;
-      const response = await fetch(
+      const response = await appFetch(
         task ? "/api/tasks/" + task.id : "/api/tasks",
         {
           method: task ? "PATCH" : "POST",

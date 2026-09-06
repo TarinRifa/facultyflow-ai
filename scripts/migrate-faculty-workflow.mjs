@@ -100,6 +100,24 @@ try {
     );
     console.log("Question editor fields installed.");
   }
+  const chatMigration = "202609060009_chat_history.sql";
+  if (
+    !(
+      await client.query(
+        "select 1 from public.faculty_setup_migrations where name=$1",
+        [chatMigration],
+      )
+    ).rowCount
+  ) {
+    await client.query(
+      fs.readFileSync(`supabase/migrations/${chatMigration}`, "utf8"),
+    );
+    await client.query(
+      "insert into public.faculty_setup_migrations(name) values($1)",
+      [chatMigration],
+    );
+    console.log("Persistent chat history installed.");
+  }
 } finally {
   await client.end();
 }

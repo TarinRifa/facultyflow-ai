@@ -40,8 +40,9 @@ export async function executeTool(
       data: {
         proposal: action,
         requires_user_approval: true,
-        instruction:
-          "Tell the user to review the proposal card and choose Approve or Cancel. Do not claim it already happened.",
+        instruction: action.selection_required
+          ? "Tell the user to choose a task from the current-task picker, then confirm. No task has been deleted."
+          : "Tell the user to review the proposal card and choose Approve or Cancel. Do not claim it already happened.",
       },
       tasks: [],
       actions: [action],

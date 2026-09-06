@@ -1,9 +1,11 @@
 "use client";
+import { appFetch } from "@/lib/client-api";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, Send, LoaderCircle, Check, X } from "lucide-react";
 import { displayDate } from "@/lib/dates";
 import type { ChatReply } from "@/lib/ai/schema";
+import { ChatTaskPicker } from "./chat-task-picker";
 const prompts = [
   "What do I have due this week?",
   "Do I have anything overdue?",
@@ -11,9 +13,13 @@ const prompts = [
   "What should I prioritize today?",
   "Summarize my workload by status and priority.",
   "Add a high-priority grading task called Moderate final scripts.",
+  "Delete a task",
+  "Add a course called Research Methods with code RES502. Ask me for semester dates.",
+  "Delete my course RES502.",
   "Create a 10-mark quiz for CSE401 next week.",
 ];
 type Message = {
+  id?: string;
   role: "user" | "assistant";
   text: string;
   tasks?: ChatReply["tasks"];
@@ -25,15 +31,67 @@ export function Assistant() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [failed, setFailed] = useState<Message[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const lock = useRef(false);
   const end = useRef<HTMLDivElement>(null);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
+    let active = true;
+    appFetch("/api/chat/history", { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok)
+          throw new Error(data.error || "Could not load chat history.");
+        if (active) {
+          setMessages(data.messages);
+          setNextCursor(data.nextCursor);
+          setLoading(false);
+        }
+      })
+      .catch((cause) => {
+        if (active) {
+          setHistoryError(
+            cause instanceof Error ? cause.message : "Could not load history.",
+          );
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  async function loadHistory(older = false) {
+    setLoading(true);
+    setHistoryError("");
+    try {
+      const response = await appFetch(
+        "/api/chat/history" +
+          (older && nextCursor ? "?before=" + nextCursor : ""),
+        { cache: "no-store" },
+      );
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Could not load chat history.");
+      setMessages((current) =>
+        older ? [...data.messages, ...current] : data.messages,
+      );
+      setNextCursor(data.nextCursor);
+    } catch (cause) {
+      setHistoryError(
+        cause instanceof Error ? cause.message : "Could not load history.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
     end.current?.scrollIntoView({ block: "nearest" });
   }, [messages, busy, error]);
   async function send(text: string, retry?: Message[]) {
-    if (lock.current || !text.trim()) return;
+    if (lock.current || loading || historyError || !text.trim()) return;
     lock.current = true;
     setBusy(true);
     setError("");
@@ -50,7 +108,7 @@ export function Assistant() {
         .slice(0, -1)
         .slice(-6)
         .map(({ role, text }) => ({ role, text: text.slice(0, 1000) }));
-      const response = await fetch("/api/chat", {
+      const response = await appFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text.trim(), history }),
@@ -85,13 +143,45 @@ export function Assistant() {
       setBusy(false);
     }
   }
+  async function selectTask(actionId: string, taskId: string) {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await appFetch("/api/chat/select-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action_id: actionId, task_id: taskId }),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "Could not select this task.");
+      setMessages((current) => [
+        ...current.map((m) => ({
+          ...m,
+          actions: m.actions?.filter((a) => a.id !== actionId),
+        })),
+        {
+          role: "assistant",
+          text: "Review your selected task and confirm deletion.",
+          actions: [result.action],
+        },
+      ]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Task selection failed.");
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
   async function decide(actionId: string, decision: "approve" | "cancel") {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/chat/actions", {
+      const response = await appFetch("/api/chat/actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action_id: actionId, decision }),
@@ -131,7 +221,7 @@ export function Assistant() {
         {prompts.map((prompt) => (
           <button
             key={prompt}
-            disabled={busy}
+            disabled={busy || loading || !!historyError}
             onClick={() => void send(prompt)}
           >
             {prompt}
@@ -145,6 +235,24 @@ export function Assistant() {
         aria-live="polite"
         aria-busy={busy}
       >
+        {loading && <p role="status">Loading saved conversation…</p>}
+        {historyError && (
+          <div className="error" role="alert">
+            {historyError}{" "}
+            <button className="secondary" onClick={() => void loadHistory()}>
+              Retry history
+            </button>
+          </div>
+        )}
+        {nextCursor && (
+          <button
+            className="secondary"
+            disabled={loading || busy}
+            onClick={() => void loadHistory(true)}
+          >
+            Load older messages
+          </button>
+        )}
         {!messages.length && (
           <div className="chat-empty">
             <Sparkles size={30} />
@@ -180,22 +288,46 @@ export function Assistant() {
               <div className="chat-actions">
                 {message.actions.map((action) => (
                   <div key={action.id}>
-                    <strong>Approval required</strong>
+                    <strong>
+                      {action.selection_required
+                        ? "Select a task"
+                        : "Confirmation required"}
+                    </strong>
                     <p>{action.summary}</p>
                     <small>
                       Expires {new Date(action.expires_at).toLocaleTimeString()}
                     </small>
+                    {action.selection_required && (
+                      <ChatTaskPicker
+                        disabled={
+                          busy ||
+                          new Date(action.expires_at).getTime() <= Date.now()
+                        }
+                        onSelect={(id) => void selectTask(action.id, id)}
+                      />
+                    )}
                     <span>
-                      <button
-                        className="approve"
-                        disabled={busy}
-                        onClick={() => void decide(action.id, "approve")}
-                      >
-                        <Check size={15} /> Approve
-                      </button>
+                      {!action.selection_required && (
+                        <button
+                          className="approve"
+                          disabled={
+                            busy ||
+                            new Date(action.expires_at).getTime() <= Date.now()
+                          }
+                          onClick={() => void decide(action.id, "approve")}
+                        >
+                          <Check size={15} />{" "}
+                          {action.kind === "task.delete"
+                            ? "Confirm delete"
+                            : "Approve"}
+                        </button>
+                      )}
                       <button
                         className="secondary"
-                        disabled={busy}
+                        disabled={
+                          busy ||
+                          new Date(action.expires_at).getTime() <= Date.now()
+                        }
                         onClick={() => void decide(action.id, "cancel")}
                       >
                         <X size={15} /> Cancel
@@ -245,11 +377,11 @@ export function Assistant() {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder="What should I focus on today?"
-            disabled={busy}
+            disabled={busy || loading || !!historyError}
           />
           <button
             className="primary"
-            disabled={busy || !draft.trim()}
+            disabled={busy || loading || !!historyError || !draft.trim()}
             type="submit"
           >
             <Send size={18} /> Send

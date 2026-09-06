@@ -1,4 +1,5 @@
 "use client";
+import { appFetch } from "@/lib/client-api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -90,7 +91,9 @@ export function Workspace({ view }: { view: "dashboard" | "tasks" }) {
             : ["/api/dashboard", "/api/tasks?" + params];
         const results = await Promise.all(
           paths.map(async (path) => {
-            const response = await fetch(path, { signal: controller.signal });
+            const response = await appFetch(path, {
+              signal: controller.signal,
+            });
             const result = await response.json();
             if (response.status === 401) {
               router.push("/login");
@@ -129,7 +132,7 @@ export function Workspace({ view }: { view: "dashboard" | "tasks" }) {
     setBusy(task.id);
     setError("");
     try {
-      const response = await fetch("/api/tasks/" + task.id, {
+      const response = await appFetch("/api/tasks/" + task.id, {
         method: remove ? "DELETE" : "PATCH",
         headers: { "Content-Type": "application/json" },
         ...(remove

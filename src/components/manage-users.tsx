@@ -1,4 +1,5 @@
 "use client";
+import { appFetch } from "@/lib/client-api";
 import { useEffect, useState } from "react";
 import { LoaderCircle, Plus, ShieldCheck, UserRound } from "lucide-react";
 
@@ -16,29 +17,37 @@ export function ManageUsers() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/admin/users", { cache: "no-store" })
+    appFetch("/api/admin/users", { cache: "no-store" })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
         setUsers(data.users);
       })
-      .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load users."));
+      .catch((cause) =>
+        setError(
+          cause instanceof Error ? cause.message : "Could not load users.",
+        ),
+      );
   }, []);
 
   async function promote(user: Account) {
     setBusy(user.id);
     setError("");
     try {
-      const response = await fetch("/api/admin/users", {
+      const response = await appFetch("/api/admin/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: user.id }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
-      setUsers((current) => current.map((item) => item.id === user.id ? data.user : item));
+      setUsers((current) =>
+        current.map((item) => (item.id === user.id ? data.user : item)),
+      );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not promote this user.");
+      setError(
+        cause instanceof Error ? cause.message : "Could not promote this user.",
+      );
     } finally {
       setBusy("");
     }
@@ -51,7 +60,7 @@ export function ManageUsers() {
     setBusy("create");
     setError("");
     try {
-      const response = await fetch("/api/admin/users", {
+      const response = await appFetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -65,7 +74,11 @@ export function ManageUsers() {
       setUsers((current) => [...current, data.user]);
       form.reset();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not create the administrator.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not create the administrator.",
+      );
     } finally {
       setBusy("");
     }
@@ -76,38 +89,79 @@ export function ManageUsers() {
       <header className="page-heading">
         <div>
           <span className="eyebrow">ADMINISTRATION</span>
-          <h1>Manage users<span className="heading-dot">.</span></h1>
-          <p>Faculty accounts can only become administrators through this protected page.</p>
+          <h1>
+            Manage users<span className="heading-dot">.</span>
+          </h1>
+          <p>
+            Faculty accounts can only become administrators through this
+            protected page.
+          </p>
         </div>
       </header>
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <form className="panel admin-create-form" onSubmit={addAdmin}>
         <div>
           <strong>Create administrator</strong>
           <small>Create login credentials for another administrator.</small>
         </div>
-        <label>Full name<input name="display_name" required minLength={2} maxLength={100} /></label>
-        <label>Email<input name="email" type="email" required maxLength={254} /></label>
-        <label>Password<input name="password" type="password" required minLength={8} maxLength={128} autoComplete="new-password" /></label>
+        <label>
+          Full name
+          <input name="display_name" required minLength={2} maxLength={100} />
+        </label>
+        <label>
+          Email
+          <input name="email" type="email" required maxLength={254} />
+        </label>
+        <label>
+          Password
+          <input
+            name="password"
+            type="password"
+            required
+            minLength={8}
+            maxLength={128}
+            autoComplete="new-password"
+          />
+        </label>
         <button className="primary" disabled={busy === "create"}>
-          {busy === "create" ? <LoaderCircle className="spin" size={15} /> : <Plus size={15} />} Add admin
+          {busy === "create" ? (
+            <LoaderCircle className="spin" size={15} />
+          ) : (
+            <Plus size={15} />
+          )}{" "}
+          Add admin
         </button>
       </form>
       <section className="panel admin-panel">
         <div className="admin-user-list">
           {users.map((user) => (
             <article className="admin-user-row" key={user.id}>
-              <span className="admin-user-icon"><UserRound size={18} /></span>
+              <span className="admin-user-icon">
+                <UserRound size={18} />
+              </span>
               <div>
                 <strong>{user.display_name}</strong>
                 <small>{user.email}</small>
               </div>
               <span className={`role-badge ${user.role}`}>
-                {user.role === "admin" && <ShieldCheck size={13} />}{user.role}
+                {user.role === "admin" && <ShieldCheck size={13} />}
+                {user.role}
               </span>
               {user.role === "faculty" && (
-                <button className="approve" disabled={busy === user.id} onClick={() => void promote(user)}>
-                  {busy === user.id ? <LoaderCircle className="spin" size={15} /> : <ShieldCheck size={15} />}
+                <button
+                  className="approve"
+                  disabled={busy === user.id}
+                  onClick={() => void promote(user)}
+                >
+                  {busy === user.id ? (
+                    <LoaderCircle className="spin" size={15} />
+                  ) : (
+                    <ShieldCheck size={15} />
+                  )}
                   Make Admin
                 </button>
               )}

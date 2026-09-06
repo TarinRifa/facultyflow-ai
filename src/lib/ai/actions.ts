@@ -46,6 +46,7 @@ export type AssistantAction = {
   summary: string;
   expires_at: string;
   status: string;
+  selection_required?: boolean;
 };
 async function one<T extends Record<string, unknown>>(
   text: string,
@@ -86,15 +87,8 @@ export async function proposeAssistantAction(
       payload = valid;
       summary = `Create task “${valid.title}”${valid.course_code ? ` for ${valid.course_code}` : ""}.`;
     } else {
-      if (!v.target_title)
-        throw new ApiError(400, "Give the exact task title to delete.");
-      const target = await one<{ id: string; title: string }>(
-        "select id,title from public.tasks where user_id=$1 and lower(title)=lower($2) limit 2",
-        [userId, v.target_title],
-        "Task",
-      );
-      payload = { id: target.id };
-      summary = `Delete task “${target.title}”.`;
+      payload = { selection_required: true };
+      summary = "Choose a current task to delete, then confirm the deletion.";
     }
   } else if (name === "manage_course") {
     const v = courseActionSchema.parse(input);
@@ -187,7 +181,7 @@ export async function proposeAssistantAction(
   }
   return (
     await db.query<AssistantAction>(
-      "insert into public.assistant_actions(user_id,kind,payload,summary) values($1,$2,$3,$4) returning id,kind,summary,status,expires_at",
+      "insert into public.assistant_actions(user_id,kind,payload,summary) values($1,$2,$3,$4) returning id,kind,summary,status,expires_at,coalesce((payload->>'selection_required')::boolean,false) selection_required",
       [userId, kind, JSON.stringify(payload), summary],
     )
   ).rows[0];
@@ -221,9 +215,44 @@ export async function decideAssistantAction(
         "update public.assistant_actions set status='cancelled' where id=$1",
         [actionId],
       );
+      await client.query(
+        "insert into public.chat_messages(user_id,role,text) values($1,'assistant',$2)",
+        [userId, "Action cancelled: " + action.summary],
+      );
       return { status: "cancelled", message: "Action cancelled." };
     }
     const p = action.payload;
+    if (p.selection_required)
+      throw new ApiError(400, "Choose a task before confirming deletion.");
+    if (action.kind === "quiz.create") {
+      const course = (
+        await client.query(
+          "select semester_start,semester_end from public.courses where id=$1 and user_id=$2 for update",
+          [p.course_id, userId],
+        )
+      ).rows[0];
+      if (!course) throw new ApiError(404, "Course no longer exists.");
+      const day = (v: Date | string) =>
+        v instanceof Date
+          ? v.toISOString().slice(0, 10)
+          : String(v).slice(0, 10);
+      if (
+        p.scheduled_on < day(course.semester_start) ||
+        p.scheduled_on > day(course.semester_end)
+      )
+        throw new ApiError(400, "Quiz date is outside the semester.");
+      const total = (
+        await client.query(
+          "select coalesce(sum(weight_percent),0)::float total from public.assessments where course_id=$1",
+          [p.course_id],
+        )
+      ).rows[0].total;
+      if (total + Number(p.weight_percent) > 100.001)
+        throw new ApiError(
+          400,
+          "The course no longer has enough assessment weight available.",
+        );
+    }
     let result;
     if (action.kind === "task.create")
       result = (
@@ -292,6 +321,10 @@ export async function decideAssistantAction(
     await client.query(
       "update public.assistant_actions set status='approved',executed_at=now() where id=$1",
       [actionId],
+    );
+    await client.query(
+      "insert into public.chat_messages(user_id,role,text) values($1,'assistant',$2)",
+      [userId, "Completed: " + action.summary],
     );
     return {
       status: "approved",
