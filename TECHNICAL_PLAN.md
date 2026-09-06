@@ -2,19 +2,19 @@
 
 ## Tech Stack
 
-| Layer | Choice | Reason |
-|---|---|---|
-| Web application | Next.js with App Router and TypeScript | One deployable project for UI, server routes, and backend logic |
-| UI | Tailwind CSS plus a small accessible component set | Fast, consistent hackathon implementation |
-| Forms/validation | React Hook Form and Zod | Clear client/server validation with shared schemas |
-| Database | Supabase PostgreSQL | Managed Postgres, migrations, dashboard, and row-level security |
-| Authentication | Supabase Auth | Simple identity and direct RLS integration |
-| Database access | Supabase server client | Minimal infrastructure and typed queries |
-| AI | Google Gemini API, server-side only | Native function/tool calling and concise summarization |
-| Tests | Vitest, React Testing Library, Playwright | Unit, component, and critical end-to-end coverage |
-| Deployment | Vercel for Next.js; Supabase hosted project | Low-setup hackathon deployment |
+| Layer            | Choice                                             | Reason                                                          |
+| ---------------- | -------------------------------------------------- | --------------------------------------------------------------- |
+| Web application  | Next.js with App Router and TypeScript             | One deployable project for UI, server routes, and backend logic |
+| UI               | Tailwind CSS plus a small accessible component set | Fast, consistent hackathon implementation                       |
+| Forms/validation | React Hook Form and Zod                            | Clear client/server validation with shared schemas              |
+| Database         | Supabase PostgreSQL                                | Managed Postgres, migrations, dashboard, and row-level security |
+| Authentication   | Supabase Auth                                      | Simple identity and direct RLS integration                      |
+| Database access  | Supabase server client                             | Minimal infrastructure and typed queries                        |
+| AI               | Google Gemini API, server-side only                | Native function/tool calling and concise summarization          |
+| Tests            | Vitest, React Testing Library, Playwright          | Unit, component, and critical end-to-end coverage               |
+| Deployment       | Vercel for Next.js; Supabase hosted project        | Low-setup hackathon deployment                                  |
 
-The exact compatible Gemini SDK and model identifier should be confirmed before implementation. The provided `GEMINI_MODEL` value appears incomplete because it ends in `-`.
+Phase 4 uses the official `@google/genai` SDK with `GEMINI_MODEL=gemini-3.5-flash-lite`, verified with a live tool-calling request. The implementation uses the existing custom session authentication and parameterized PostgreSQL services; the Supabase Auth/client entries below describe the original proposal.
 
 ## Application Structure
 
@@ -92,15 +92,15 @@ Next.js is the backend as well as the frontend host. Route handlers and server-s
 
 ### Proposed Endpoints
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/api/tasks` | List/search/filter/sort the current user’s tasks |
-| `POST` | `/api/tasks` | Create a validated task |
-| `GET` | `/api/tasks/:id` | Retrieve one owned task |
-| `PATCH` | `/api/tasks/:id` | Update fields or status |
-| `DELETE` | `/api/tasks/:id` | Delete one owned task |
-| `GET` | `/api/dashboard` | Return dashboard counts and urgent items |
-| `POST` | `/api/chat` | Run the authenticated Gemini tool-calling loop |
+| Method   | Endpoint         | Purpose                                          |
+| -------- | ---------------- | ------------------------------------------------ |
+| `GET`    | `/api/tasks`     | List/search/filter/sort the current user’s tasks |
+| `POST`   | `/api/tasks`     | Create a validated task                          |
+| `GET`    | `/api/tasks/:id` | Retrieve one owned task                          |
+| `PATCH`  | `/api/tasks/:id` | Update fields or status                          |
+| `DELETE` | `/api/tasks/:id` | Delete one owned task                            |
+| `GET`    | `/api/dashboard` | Return dashboard counts and urgent items         |
+| `POST`   | `/api/chat`      | Run the authenticated Gemini tool-calling loop   |
 
 Server actions could replace some CRUD endpoints, but route handlers are preferred for a clear API boundary and straightforward testing. Shared service functions will prevent dashboard and AI queries from duplicating business rules.
 
@@ -118,30 +118,30 @@ Server actions could replace some CRUD endpoints, but route handlers are preferr
 
 ### `profiles`
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid` | Primary key; references `auth.users(id)` |
-| `display_name` | `text` | Faculty display name |
-| `timezone` | `text` | IANA timezone, such as `Asia/Dhaka` |
-| `created_at` | `timestamptz` | Default `now()` |
-| `updated_at` | `timestamptz` | Updated automatically/application-side |
+| Column         | Type          | Notes                                    |
+| -------------- | ------------- | ---------------------------------------- |
+| `id`           | `uuid`        | Primary key; references `auth.users(id)` |
+| `display_name` | `text`        | Faculty display name                     |
+| `timezone`     | `text`        | IANA timezone, such as `Asia/Dhaka`      |
+| `created_at`   | `timestamptz` | Default `now()`                          |
+| `updated_at`   | `timestamptz` | Updated automatically/application-side   |
 
 ### `tasks`
 
-| Column | Type | Rules |
-|---|---|---|
-| `id` | `uuid` | Primary key, generated UUID |
-| `user_id` | `uuid` | Required; references `auth.users(id)` with cascade delete |
-| `title` | `text` | Required, trimmed, bounded length |
-| `description` | `text` | Optional, bounded length |
-| `due_at` | `timestamptz` | Optional |
-| `priority` | enum/text | `low`, `medium`, `high`, `urgent` |
-| `category` | `text` | Optional faculty category, e.g. Research |
-| `course_code` | `text` | Optional normalized code, e.g. CSE101 |
-| `status` | enum/text | `pending`, `in_progress`, `completed` |
-| `completed_at` | `timestamptz` | Set only while completed |
-| `created_at` | `timestamptz` | Default `now()` |
-| `updated_at` | `timestamptz` | Updated on each mutation |
+| Column         | Type          | Rules                                                     |
+| -------------- | ------------- | --------------------------------------------------------- |
+| `id`           | `uuid`        | Primary key, generated UUID                               |
+| `user_id`      | `uuid`        | Required; references `auth.users(id)` with cascade delete |
+| `title`        | `text`        | Required, trimmed, bounded length                         |
+| `description`  | `text`        | Optional, bounded length                                  |
+| `due_at`       | `timestamptz` | Optional                                                  |
+| `priority`     | enum/text     | `low`, `medium`, `high`, `urgent`                         |
+| `category`     | `text`        | Optional faculty category, e.g. Research                  |
+| `course_code`  | `text`        | Optional normalized code, e.g. CSE101                     |
+| `status`       | enum/text     | `pending`, `in_progress`, `completed`                     |
+| `completed_at` | `timestamptz` | Set only while completed                                  |
+| `created_at`   | `timestamptz` | Default `now()`                                           |
+| `updated_at`   | `timestamptz` | Updated on each mutation                                  |
 
 Category and course code are separate: a task may be “Teaching” and belong to “CSE101.” The UI may label these compactly, but separating them enables accurate AI filtering.
 
@@ -233,4 +233,3 @@ For the MVP, chat can remain session-local in the browser and send only a bounde
 - Abort or time out slow AI calls and provide a retry action.
 - Limit tool results and summarize larger result sets deterministically before model use.
 - Avoid caching private API responses across users.
-

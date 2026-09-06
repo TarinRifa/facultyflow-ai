@@ -9,16 +9,21 @@ import {
   LogOut,
   Sparkles,
   PanelLeftClose,
+  BookOpenCheck,
+  ShieldCheck,
+  Settings2,
 } from "lucide-react";
 import { useState } from "react";
 export function Shell({
   children,
   name,
   email,
+  role,
 }: {
   children: React.ReactNode;
   name: string;
   email: string;
+  role: "admin" | "faculty";
 }) {
   const path = usePathname();
   const router = useRouter();
@@ -35,7 +40,7 @@ export function Shell({
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <Link href="/dashboard" className="brand">
+        <Link href={role === "admin" ? "/admin" : "/dashboard"} className="brand">
           <span className="brand-icon">
             <GraduationCap size={23} />
           </span>
@@ -44,13 +49,14 @@ export function Shell({
         <div className="workspace-label">
           <span className="workspace-avatar">F</span>
           <div>
-            <strong>Faculty workspace</strong>
-            <small>Personal space</small>
+            <strong>{role === "admin" ? "Admin workspace" : "Faculty workspace"}</strong>
+            <small>{role === "admin" ? "Administration" : "Personal space"}</small>
           </div>
           <PanelLeftClose size={16} />
         </div>
         <div className="nav-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
+          {role === "faculty" && <>
           <Link
             aria-current={path === "/dashboard" ? "page" : undefined}
             className={path === "/dashboard" ? "nav-item active" : "nav-item"}
@@ -60,6 +66,14 @@ export function Shell({
             Overview
           </Link>
           <Link
+            aria-current={path === "/faculty" ? "page" : undefined}
+            className={path === "/faculty" ? "nav-item active" : "nav-item"}
+            href="/faculty"
+          >
+            <BookOpenCheck size={19} />
+            Faculty tools
+          </Link>
+          <Link
             aria-current={path === "/tasks" ? "page" : undefined}
             className={path === "/tasks" ? "nav-item active" : "nav-item"}
             href="/tasks"
@@ -67,8 +81,40 @@ export function Shell({
             <ListTodo size={19} />
             My tasks
           </Link>
+          <Link
+            aria-current={path === "/assistant" ? "page" : undefined}
+            className={path === "/assistant" ? "nav-item active" : "nav-item"}
+            href="/assistant"
+          >
+            <Sparkles size={19} />
+            AI Assistant
+          </Link>
+          </>}
+          {role === "admin" && (
+            <>
+              <Link href="/admin" className={path === "/admin" ? "nav-item active" : "nav-item"} aria-current={path === "/admin" ? "page" : undefined}>
+                <LayoutDashboard size={19} />Dashboard
+              </Link>
+              <Link
+                aria-current={path === "/admin/users" ? "page" : undefined}
+                className={path === "/admin/users" ? "nav-item active" : "nav-item"}
+                href="/admin/users"
+              >
+                <ShieldCheck size={19} />
+                Manage users
+              </Link>
+              <Link
+                aria-current={path === "/admin/settings" ? "page" : undefined}
+                className={path === "/admin/settings" ? "nav-item active" : "nav-item"}
+                href="/admin/settings"
+              >
+                <Settings2 size={19} />
+                Academic settings
+              </Link>
+            </>
+          )}
         </nav>
-        <div className="sidebar-note">
+        {role === "faculty" && <div className="sidebar-note">
           <span className="note-icon">
             <Sparkles size={19} />
           </span>
@@ -81,12 +127,13 @@ export function Shell({
           <Link href="/tasks">
             Plan your day <ArrowUpRight size={15} />
           </Link>
-        </div>
+        </div>}
         <div className="account">
           <span className="avatar">{name.charAt(0).toUpperCase()}</span>
           <div>
             <strong>{name}</strong>
             <small title={email}>{email}</small>
+            {role === "admin" && <small className="account-role">Administrator</small>}
           </div>
           <button
             className="icon-button"
@@ -106,11 +153,23 @@ export function Shell({
         <header className="topbar">
           <span>
             Workspace <span className="breadcrumb">/</span>{" "}
-            <strong>{path === "/tasks" ? "My tasks" : "Overview"}</strong>
+            <strong>
+              {path === "/tasks"
+                ? "My tasks"
+                : path === "/assistant"
+                  ? "AI Assistant"
+                  : path === "/faculty"
+                    ? "Faculty tools"
+                    : path === "/admin/users"
+                      ? "Manage users"
+                      : path === "/admin/settings"
+                        ? "Academic settings"
+                    : "Overview"}
+            </strong>
           </span>
           <div className="topbar-right">
             <span className="private-dot" />
-            Personal workspace
+            {role === "admin" ? "Admin workspace" : "Personal workspace"}
             <span className="avatar small">{name.charAt(0).toUpperCase()}</span>
           </div>
         </header>

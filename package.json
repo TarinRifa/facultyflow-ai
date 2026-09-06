@@ -12,15 +12,20 @@
     "test:e2e": "playwright test",
     "format": "prettier --write src tests",
     "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
-    "db:migrate:auth": "node --env-file=.env.local scripts/migrate-custom-auth.mjs"
+    "db:migrate:auth": "node --env-file=.env.local scripts/migrate-custom-auth.mjs",
+    "db:migrate:faculty": "node --env-file=.env.local scripts/migrate-faculty-workflow.mjs",
+    "db:seed:faculty": "node --env-file=.env.local scripts/seed-faculty-workspace.mjs"
   },
   "dependencies": {
+    "@google/genai": "^2.21.0",
     "@hookform/resolvers": "^5.2.0",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "lucide-react": "^0.563.0",
+    "mammoth": "^1.12.2",
     "next": "^16.0.0",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.16.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
