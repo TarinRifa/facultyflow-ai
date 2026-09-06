@@ -7,6 +7,8 @@ import { z } from "zod";
 import type { z as zType } from "zod";
 import crypto from "node:crypto";
 import { getAcademicSettings } from "./admin";
+import { saveAssessment } from "./editors";
+import { assessmentFormSchema } from "./editor-validation";
 import {
   courseSchema,
   syllabusSchema,
@@ -75,7 +77,7 @@ export async function facultyWorkspace(userId: string) {
       [userId],
     ),
     db.query(
-      "select g.*,(select question_text from public.previous_questions where id=g.matched_question_id) matched_question,(select p.year from public.previous_questions q join public.previous_papers p on p.id=q.paper_id where q.id=g.matched_question_id) matched_year from public.generated_questions g join public.courses c on c.id=g.course_id where c.user_id=$1 order by g.created_at desc",
+      "select g.*,(select question_text from public.previous_questions where id=g.matched_question_id) matched_question,(select p.year from public.previous_questions q join public.previous_papers p on p.id=q.paper_id where q.id=g.matched_question_id) matched_year from public.generated_questions g join public.courses c on c.id=g.course_id where c.user_id=$1 order by g.position,g.created_at,g.id",
       [userId],
     ),
     db.query(
@@ -262,7 +264,9 @@ export async function generatePlan(
 ) {
   const [course, syllabusResult, academicSettings] = await Promise.all([
     ownedCourse(userId, input.course_id),
-    db.query("select * from public.syllabi where course_id=$1", [input.course_id]),
+    db.query("select * from public.syllabi where course_id=$1", [
+      input.course_id,
+    ]),
     getAcademicSettings(),
   ]);
   const syllabus = syllabusResult.rows[0];
@@ -272,10 +276,36 @@ export async function generatePlan(
     input.quiz_count +
     Number(input.include_midterm) +
     Number(input.include_final);
+  const retained = (
+    await db.query(
+      "select coalesce(sum(weight_percent),0)::float total from public.assessments where course_id=$1 and not(status='draft' and source='ai')",
+      [input.course_id],
+    )
+  ).rows[0].total;
+  if (retained >= 100)
+    throw new ApiError(
+      409,
+      "Saved assessments already use 100% of the course weight. Edit or remove them before generating more.",
+    );
+  if (
+    calendarDate(course.semester_start) >
+      calendarDate(academicSettings.semester_end) ||
+    calendarDate(course.semester_end) <
+      calendarDate(academicSettings.semester_start)
+  )
+    throw new ApiError(
+      409,
+      "Course dates do not overlap the institutional semester.",
+    );
   const result = await generateJson(
     planResult,
     `Create exactly ${expected} assessments: ${input.quiz_count} quizzes, ${input.include_midterm ? 1 : 0} midterms and ${input.include_final ? 1 : 0} finals. Distribute syllabus topics and CLOs based on progress and semester dates. Follow the supplied institutional assessment and academic rules. Return dates inside both the course and institutional semester windows and positive marks/weights whose total weight is at most 100. These are drafts for faculty approval.`,
-    { course, syllabus, academic_settings: academicSettings },
+    {
+      course,
+      syllabus,
+      academic_settings: academicSettings,
+      maximum_total_weight_for_this_plan: 100 - retained,
+    },
   );
   if (result.assessments.length !== expected)
     throw new ApiError(
@@ -290,13 +320,18 @@ export async function generatePlan(
     const start = [
         calendarDate(course.semester_start),
         calendarDate(academicSettings.semester_start),
-      ].sort().at(-1)!,
+      ]
+        .sort()
+        .at(-1)!,
       end = [
         calendarDate(course.semester_end),
         calendarDate(academicSettings.semester_end),
       ].sort()[0];
     if (end <= start)
-      throw new ApiError(409, "Course dates do not overlap the institutional semester.");
+      throw new ApiError(
+        409,
+        "Course dates do not overlap the institutional semester.",
+      );
     if (item.scheduled_on < start || item.scheduled_on > end)
       throw new ApiError(
         422,
@@ -314,6 +349,20 @@ export async function generatePlan(
       "AI returned invalid assessment totals. Please regenerate.",
     );
   return transaction(async (client) => {
+    await client.query("select id from public.courses where id=$1 for update", [
+      input.course_id,
+    ]);
+    const retainedWeight = (
+      await client.query(
+        "select coalesce(sum(weight_percent),0)::float total from public.assessments where course_id=$1 and not(status='draft' and source='ai')",
+        [input.course_id],
+      )
+    ).rows[0].total;
+    if (retainedWeight + weight > 100.001)
+      throw new ApiError(
+        422,
+        "Generated weights plus saved assessments exceed 100%. Reduce the plan or edit existing weights.",
+      );
     await client.query(
       "delete from public.assessments where course_id=$1 and status='draft' and source='ai'",
       [input.course_id],
@@ -345,38 +394,22 @@ export async function updateAssessment(
   input: zType.infer<typeof assessmentUpdateSchema>,
 ) {
   const current = await ownedAssessment(userId, id);
-  const course = await ownedCourse(userId, current.course_id);
-  if (
-    input.scheduled_on &&
-    (input.scheduled_on < calendarDate(course.semester_start) ||
-      input.scheduled_on > calendarDate(course.semester_end))
-  )
-    throw new ApiError(400, "Assessment date must be inside the semester.");
-  const merged = { ...current, ...input };
-  const sum = await db.query(
-    "select coalesce(sum(weight_percent),0)::float total from public.assessments where course_id=$1 and id<>$2",
-    [current.course_id, id],
+  return saveAssessment(
+    userId,
+    assessmentFormSchema.parse({
+      course_id: current.course_id,
+      id,
+      title: current.title,
+      kind: current.kind,
+      scheduled_on: calendarDate(current.scheduled_on),
+      marks: Number(current.marks),
+      weight_percent: Number(current.weight_percent),
+      topics: current.topics,
+      clos: current.clos,
+      status: current.status,
+      ...input,
+    }),
   );
-  if (Number(sum.rows[0].total) + Number(merged.weight_percent) > 100.001)
-    throw new ApiError(
-      400,
-      "Assessment weights cannot exceed 100% for a course.",
-    );
-  return (
-    await db.query(
-      "update public.assessments set title=$1,scheduled_on=$2,marks=$3,weight_percent=$4,topics=$5,clos=$6,status=$7,source='faculty' where id=$8 returning *",
-      [
-        merged.title,
-        merged.scheduled_on,
-        merged.marks,
-        merged.weight_percent,
-        JSON.stringify(merged.topics),
-        JSON.stringify(merged.clos),
-        merged.status,
-        id,
-      ],
-    )
-  ).rows[0];
 }
 
 export async function addPreviousPaper(
@@ -555,8 +588,9 @@ export async function updateQuestion(
   if (!found.rows[0]) throw new ApiError(404, "Question not found.");
   const merged = { ...found.rows[0], ...input };
   if (
-    input.question_text &&
-    input.question_text !== found.rows[0].question_text
+    (input.question_text &&
+      input.question_text !== found.rows[0].question_text) ||
+    found.rows[0].quality_pending
   ) {
     const [syllabus, previous, embedding, relevance] = await Promise.all([
       db.query(
@@ -567,7 +601,9 @@ export async function updateQuestion(
         "select q.id,q.embedding from public.previous_questions q join public.previous_papers p on p.id=q.paper_id where p.course_id=$1 and q.embedding is not null limit 300",
         [merged.course_id],
       ),
-      embedTexts([merged.question_text]).then((values) => values[0]),
+      embedTexts([
+        merged.question_text + "\n" + (merged.options || []).join("\n"),
+      ]).then((values) => values[0]),
       db
         .query(
           "select content,topics,clos,progress_percent from public.syllabi where course_id=$1",
@@ -579,7 +615,12 @@ export async function updateQuestion(
           return generateJson(
             relevanceResult,
             "Score how relevant this faculty-edited question is to the supplied syllabus and completed coverage from 0 to 100.",
-            { syllabus: result.rows[0], question: merged.question_text },
+            {
+              syllabus: result.rows[0],
+              question: merged.question_text,
+              options: merged.options,
+              answer: merged.answer,
+            },
           );
         }),
     ]);
@@ -598,7 +639,7 @@ export async function updateQuestion(
   try {
     return (
       await db.query(
-        "update public.generated_questions set question_text=$1,marks=$2,difficulty=$3,clo=$4,status=$5,syllabus_relevance=$6,previous_similarity=$7,matched_question_id=$8 where id=$9 returning *",
+        "update public.generated_questions set question_text=$1,marks=$2,difficulty=$3,clo=$4,status=$5,syllabus_relevance=$6,previous_similarity=$7,matched_question_id=$8,quality_pending=false where id=$9 returning *",
         [
           merged.question_text,
           merged.marks,
@@ -797,7 +838,9 @@ export async function generateRoadmap(
       const start = [
           calendarDate(course.semester_start),
           calendarDate(academicSettings.semester_start),
-        ].sort().at(-1)!,
+        ]
+          .sort()
+          .at(-1)!,
         finish = [
           calendarDate(course.semester_end),
           calendarDate(academicSettings.semester_end),
