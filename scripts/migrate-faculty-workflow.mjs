@@ -64,13 +64,41 @@ try {
     );
     console.log("Admin roles and academic settings installed.");
   }
-  await client.query("create table if not exists public.faculty_setup_migrations (name text primary key, applied_at timestamptz not null default now())");
+  await client.query(
+    "create table if not exists public.faculty_setup_migrations (name text primary key, applied_at timestamptz not null default now())",
+  );
   const separateAdmin = "202609060007_separate_admin.sql";
-  const applied = await client.query("select 1 from public.faculty_setup_migrations where name=$1", [separateAdmin]);
+  const applied = await client.query(
+    "select 1 from public.faculty_setup_migrations where name=$1",
+    [separateAdmin],
+  );
   if (!applied.rowCount) {
-    await client.query(fs.readFileSync(`supabase/migrations/${separateAdmin}`, "utf8"));
-    await client.query("insert into public.faculty_setup_migrations(name) values($1)", [separateAdmin]);
+    await client.query(
+      fs.readFileSync(`supabase/migrations/${separateAdmin}`, "utf8"),
+    );
+    await client.query(
+      "insert into public.faculty_setup_migrations(name) values($1)",
+      [separateAdmin],
+    );
     console.log("Separate administrator account installed; Tarin is faculty.");
+  }
+  const editorMigration = "202609060008_question_editor.sql";
+  if (
+    !(
+      await client.query(
+        "select 1 from public.faculty_setup_migrations where name=$1",
+        [editorMigration],
+      )
+    ).rowCount
+  ) {
+    await client.query(
+      fs.readFileSync(`supabase/migrations/${editorMigration}`, "utf8"),
+    );
+    await client.query(
+      "insert into public.faculty_setup_migrations(name) values($1)",
+      [editorMigration],
+    );
+    console.log("Question editor fields installed.");
   }
 } finally {
   await client.end();

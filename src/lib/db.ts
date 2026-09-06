@@ -10,12 +10,16 @@ declare global {
 function createPool() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is not configured.");
+  const pooledUrl = new URL(connectionString);
+  // Supavisor transaction pooling avoids reserving a database session per app connection.
+  if (pooledUrl.hostname.endsWith(".pooler.supabase.com") && pooledUrl.port === "5432")
+    pooledUrl.port = "6543";
   const caPath =
     process.env.SUPABASE_DB_CA_PATH ||
     path.join(process.cwd(), "certificates", "supabase-prod-ca-2021.crt");
   return new Pool({
-    connectionString,
-    max: 10,
+    connectionString: pooledUrl.toString(),
+    max: 3,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 15_000,
     ssl: { rejectUnauthorized: true, ca: fs.readFileSync(caPath, "utf8") },
@@ -23,7 +27,7 @@ function createPool() {
 }
 
 export const db = globalThis.facultyFlowPool || createPool();
-if (process.env.NODE_ENV !== "production") globalThis.facultyFlowPool = db;
+globalThis.facultyFlowPool = db;
 
 export async function transaction<T>(run: (client: PoolClient) => Promise<T>) {
   const client = await db.connect();

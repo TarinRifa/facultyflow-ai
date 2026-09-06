@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState } from "react";
+import { AssessmentEditor, QuestionEditor } from "./faculty-editors";
 import {
   BookOpen,
   BrainCircuit,
@@ -10,8 +11,6 @@ import {
   Bell,
   WandSparkles,
   Plus,
-  Check,
-  Trash2,
   RefreshCw,
 } from "lucide-react";
 
@@ -59,7 +58,10 @@ export function FacultyHub() {
     setError("");
     setNotice("");
     try {
-      const r = await fetch(`/api/faculty/${resource}`, options);
+      const r = await fetch(
+        resource ? `/api/faculty/${resource}` : "/api/faculty",
+        options,
+      );
       const v = r.status === 204 ? {} : await r.json();
       if (!r.ok) throw new Error(v.error || "Request failed.");
       await load();
@@ -486,7 +488,12 @@ function Planner({
           </form>
         </div>
       </div>
-      <AssessmentList items={assessments} api={api} />
+      <AssessmentEditor
+        key={course.id}
+        items={assessments}
+        course={course}
+        refresh={() => api("")}
+      />
     </FeaturePanel>
   );
 }
@@ -547,77 +554,6 @@ function Routine({
         </small>
       ))}
     </form>
-  );
-}
-function AssessmentList({ items, api }: { items: any[]; api: any }) {
-  return (
-    <div className="result-grid">
-      {items.map((a) => (
-        <article className="result-card" key={a.id}>
-          <div className="card-top">
-            <span className={`status-pill ${a.status}`}>{a.status}</span>
-            <strong>{a.title}</strong>
-          </div>
-          <p>
-            {a.kind} · {String(a.scheduled_on).slice(0, 10)} · {a.marks} marks ·{" "}
-            {a.weight_percent}%
-          </p>
-          <p>{a.topics?.join(", ")}</p>
-          <small>{a.rationale}</small>
-          <div className="card-actions">
-            <button
-              className="secondary"
-              onClick={() => {
-                const title = prompt("Assessment title", a.title);
-                if (!title) return;
-                const scheduled_on = prompt(
-                  "Assessment date (YYYY-MM-DD)",
-                  new Date(a.scheduled_on).toISOString().slice(0, 10),
-                );
-                const marks = Number(prompt("Marks", String(a.marks)));
-                const weight_percent = Number(
-                  prompt("Weight percentage", String(a.weight_percent)),
-                );
-                const topics = prompt(
-                  "Topics (comma separated)",
-                  a.topics?.join(", ") || "",
-                );
-                if (scheduled_on && marks > 0 && weight_percent > 0 && topics)
-                  void api("assessments", {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      id: a.id,
-                      title,
-                      scheduled_on,
-                      marks,
-                      weight_percent,
-                      topics: split(topics),
-                    }),
-                  });
-              }}
-            >
-              Edit
-            </button>
-            {a.status !== "approved" && (
-              <button
-                className="approve"
-                onClick={() =>
-                  void api("assessments", {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ id: a.id, status: "approved" }),
-                  })
-                }
-              >
-                <Check size={15} />
-                Approve
-              </button>
-            )}
-          </div>
-        </article>
-      ))}
-    </div>
   );
 }
 function Matching({
@@ -730,6 +666,7 @@ function Generator({
   api: any;
   busy: string;
 }) {
+  const [editorVersion, setEditorVersion] = useState(0);
   return (
     <FeaturePanel
       title="AI question generator"
@@ -753,7 +690,9 @@ function Generator({
               difficulty: f.get("difficulty"),
               clo: f.get("clo"),
             }),
-          });
+          })
+            .then(() => setEditorVersion((v) => v + 1))
+            .catch(() => {});
         }}
       >
         <label>
@@ -817,105 +756,14 @@ function Generator({
           Generate & quality-check
         </button>
       </form>
-      <div className="result-grid">
-        {questions.map((q) => (
-          <article className="result-card" key={q.id}>
-            <div className="card-top">
-              <span className={`status-pill ${q.status}`}>{q.status}</span>
-              <strong>{q.question_text}</strong>
-            </div>
-            <p>
-              {q.difficulty} · {q.marks} marks · relevance{" "}
-              {q.syllabus_relevance}% · previous match{" "}
-              {Number(q.previous_similarity).toFixed(1)}%
-            </p>
-            {q.matched_question && (
-              <small>
-                Closest ({q.matched_year}): {q.matched_question}
-              </small>
-            )}
-            <div className="card-actions">
-              <button
-                className="secondary"
-                onClick={() => {
-                  const question_text = prompt(
-                    "Edit question",
-                    q.question_text,
-                  );
-                  if (!question_text) return;
-                  const marks = Number(prompt("Marks", String(q.marks)));
-                  const difficulty = prompt(
-                    "Difficulty: easy, medium, or hard",
-                    q.difficulty,
-                  );
-                  const clo = prompt("CLO", q.clo || "") ?? q.clo;
-                  if (
-                    marks > 0 &&
-                    ["easy", "medium", "hard"].includes(difficulty || "")
-                  )
-                    void api("questions", {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        id: q.id,
-                        question_text,
-                        marks,
-                        difficulty,
-                        clo,
-                      }),
-                    });
-                }}
-              >
-                Edit
-              </button>
-              <button
-                className="secondary"
-                onClick={() =>
-                  void api("questions", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      course_id: courseId,
-                      assessment_id: q.assessment_id,
-                      assessment_type: q.assessment_type,
-                      count: 1,
-                      marks_each: Number(q.marks),
-                      difficulty: q.difficulty,
-                      clo: q.clo,
-                    }),
-                  })
-                }
-              >
-                <RefreshCw size={14} /> Regenerate
-              </button>
-              {q.status !== "approved" && (
-                <button
-                  className="approve"
-                  onClick={() =>
-                    void api("questions", {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ id: q.id, status: "approved" }),
-                    })
-                  }
-                >
-                  <Check size={15} />
-                  Approve
-                </button>
-              )}
-              <button
-                className="icon-button"
-                aria-label="Delete question"
-                onClick={() =>
-                  void api(`questions?id=${q.id}`, { method: "DELETE" })
-                }
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
+      <QuestionEditor
+        key={courseId + ":" + editorVersion}
+        initiallyOpen={editorVersion > 0}
+        questions={questions}
+        courseId={courseId}
+        assessments={assessments}
+        refresh={() => api("")}
+      />
     </FeaturePanel>
   );
 }
