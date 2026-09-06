@@ -13,6 +13,7 @@ export interface FacultyUser {
   email: string;
   display_name: string;
   timezone: string;
+  role: "admin" | "faculty";
 }
 
 function digest(token: string) {
@@ -51,7 +52,7 @@ export async function register(
   const hash = await bcrypt.hash(password, 12);
   try {
     const result = await db.query<FacultyUser>(
-      "insert into public.faculty_accounts(display_name,email,password_hash) values($1,$2,$3) returning id,email,display_name,timezone",
+      "insert into public.faculty_accounts(display_name,email,password_hash,role) values($1,$2,$3,'faculty') returning id,email,display_name,timezone,role",
       [displayName.trim(), normalized, hash],
     );
     await setSession(result.rows[0].id);
@@ -65,7 +66,7 @@ export async function register(
 
 export async function login(email: string, password: string) {
   const result = await db.query<FacultyUser & { password_hash: string }>(
-    "select id,email,display_name,timezone,password_hash from public.faculty_accounts where email=$1",
+    "select id,email,display_name,timezone,role,password_hash from public.faculty_accounts where email=$1",
     [email.trim().toLowerCase()],
   );
   const account = result.rows[0];
@@ -81,7 +82,7 @@ export async function currentUser(): Promise<FacultyUser | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const result = await db.query<FacultyUser>(
-    `select a.id,a.email,a.display_name,a.timezone from public.faculty_sessions s join public.faculty_accounts a on a.id=s.account_id where s.token_hash=$1 and s.expires_at>now()`,
+    `select a.id,a.email,a.display_name,a.timezone,a.role from public.faculty_sessions s join public.faculty_accounts a on a.id=s.account_id where s.token_hash=$1 and s.expires_at>now()`,
     [digest(token)],
   );
   return result.rows[0] || null;
@@ -90,6 +91,13 @@ export async function currentUser(): Promise<FacultyUser | null> {
 export async function requireUser() {
   const user = await currentUser();
   if (!user) throw new ApiError(401, "Please sign in to continue.");
+  return user;
+}
+
+export async function requireAdmin() {
+  const user = await requireUser();
+  if (user.role !== "admin")
+    throw new ApiError(403, "Administrator access is required.");
   return user;
 }
 

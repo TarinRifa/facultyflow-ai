@@ -10,7 +10,7 @@ export default async function Layout({
   const user = await currentUser();
   if (!user) redirect("/login");
   return (
-    <Shell name={user.display_name} email={user.email}>
+    <Shell name={user.display_name} email={user.email} role={user.role}>
       {children}
     </Shell>
   );

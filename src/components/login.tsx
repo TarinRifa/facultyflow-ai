@@ -34,7 +34,7 @@ export function Login() {
       );
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      router.push("/dashboard");
+      router.push(result.user.role === "admin" ? "/admin" : "/dashboard");
       router.refresh();
       return;
     } catch (cause) {

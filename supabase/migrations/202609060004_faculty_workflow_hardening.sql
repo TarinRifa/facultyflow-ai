@@ -1,0 +1,10 @@
+begin;
+alter table public.assignment_analyses add column if not exists content_hash text;
+alter table public.previous_papers add column if not exists content_hash text;
+update public.assignment_analyses set content_hash=md5(text_content) where content_hash is null;
+update public.previous_papers set content_hash=md5(text_content) where content_hash is null;
+alter table public.assignment_analyses alter column content_hash set not null;
+alter table public.previous_papers alter column content_hash set not null;
+create unique index if not exists assignment_analyses_course_hash on public.assignment_analyses(course_id,content_hash);
+create unique index if not exists previous_papers_course_hash on public.previous_papers(course_id,content_hash);
+commit;
